@@ -192,6 +192,23 @@ class SubwordField:
         result = result.replace(' ⁇ ', ' ')
         result = result.replace('⁇', "'")  # Last resort: assume apostrophe
         
+        # ENSURE PUNCTUATION AT END
+        # If text doesn't end with sentence-ending punctuation, fix it
+        result = result.strip()
+        if result and result[-1] not in '.!?…':
+            # Try to find last sentence-ending punctuation and truncate there
+            last_punct = -1
+            for i, char in enumerate(result):
+                if char in '.!?…':
+                    last_punct = i
+            
+            if last_punct > len(result) // 2:
+                # Found punctuation in second half, truncate there
+                result = result[:last_punct + 1]
+            else:
+                # No good punctuation found, add period
+                result = result.rstrip(',;:') + '.'
+        
         return result
     
     def _sample_next(
