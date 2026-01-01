@@ -259,9 +259,14 @@ async def async_main():
         generation_length=100,
         enable_overthinking=not args.no_overthinking,
         enable_lexicon=not args.no_lexicon,
+        use_subword=True,  # BPE = coherent output!
+        subword_vocab_size=500,
     ) as haze:
         print(f"[haze] corpus: {args.corpus} ({len(haze.corpus_text)} chars)")
-        print(f"[haze] vocab: {haze.vocab.vocab_size} unique chars")
+        if haze.use_subword and haze.subword_field:
+            print(f"[haze] vocab: SUBWORD BPE ({haze.subword_field.vocab.vocab_size} tokens) ← COHERENT OUTPUT!")
+        else:
+            print(f"[haze] vocab: char-level ({haze.vocab.vocab_size} chars)")
         print(f"[haze] overthinking: {'enabled' if haze.enable_overthinking else 'disabled'}")
         print(f"[haze] lexicon: {'enabled' if haze.enable_lexicon else 'disabled'}")
         print()

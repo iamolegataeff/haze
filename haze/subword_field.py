@@ -161,8 +161,22 @@ class SubwordField:
         
         result = self.vocab.decode(generated)
         
-        # Clean up unknown token markers
-        result = result.replace(" ⁇ ", " ").replace("⁇", "'")
+        # Clean up unknown token markers (sentencepiece uses ⁇ for unknown)
+        # The ⁇ usually appears where apostrophe should be in contractions
+        
+        import re
+        
+        # Pattern 1: word⁇ followed by contraction endings → apostrophe
+        # Handles: Don⁇t, It⁇s, He⁇s, I⁇m, I⁇ve, I⁇ll, You⁇re, They⁇re, etc.
+        result = re.sub(r"(\w)⁇(t|s|m|d|ll|ve|re)\b", r"\1'\2", result)
+        
+        # Pattern 2: word ⁇ word (spaced) for contractions
+        # Handles: Don ⁇ t, It ⁇ s, etc.
+        result = re.sub(r"(\w)\s*⁇\s*(t|s|m|d|ll|ve|re)\b", r"\1'\2", result)
+        
+        # Pattern 3: standalone ⁇ (not part of contraction) → remove
+        result = result.replace(' ⁇ ', ' ')
+        result = result.replace('⁇', "'")  # Last resort: assume apostrophe
         
         return result
     

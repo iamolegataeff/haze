@@ -37,12 +37,13 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     
     # 0. Normalize quotes and apostrophes to corpus-compatible versions
     # The corpus uses fancy quotes: ' ' " " instead of ASCII ' "
-    result = result.replace("'", "'")  # ASCII apostrophe → right single quote
-    result = result.replace('"', '"')  # ASCII double quote → right double quote
+    # Use Unicode escapes to ensure correct characters
+    result = result.replace("'", "’")  # ASCII apostrophe (U+0027) → right single quote (U+2019)
+    result = result.replace('"', "”")  # ASCII double quote → right double quote (U+201D)
     
     # 0b. Replace sentencepiece unknown marker
-    result = result.replace('⁇', "'")
-    result = result.replace(' ⁇ ', ' ')
+    result = result.replace('\u2047', "\u2019")  # ⁇ (U+2047) → apostrophe
+    result = result.replace(" \u2047 ", " ")
     
     # 1. Collapse repeated punctuation (but keep max 3 for style)
     result = re.sub(r'\.{4,}', '...', result)
@@ -102,10 +103,13 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     # 14. Remove duplicate dialogue markers
     result = re.sub(r'—\s*—', '—', result)
     
-    # 15. Fix broken contractions (character-level generation artifacts)
+    # 15. Fix broken contractions (character-level and subword generation artifacts)
     # Common contractions that get broken: don't, won't, can't, it's, etc.
+    # 
+    # IMPORTANT: Use \s+ (one or more spaces) for possessive-like patterns to avoid
+    # matching real words like "its" (possessive pronoun) vs "it's" (it is)
     contraction_fixes = [
-        # n't contractions - handle both spaced and edge cases
+        # n't contractions - can use \s* because "dont" is always wrong
         (r'\bdon\s*t\b', "don't"),
         (r'\bwon\s*t\b', "won't"),
         (r'\bcan\s*t\b', "can't"),
@@ -122,7 +126,7 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
         (r'\bwouldn\s*t\b', "wouldn't"),
         (r'\bcouldn\s*t\b', "couldn't"),
         (r'\bshouldn\s*t\b', "shouldn't"),
-        # 's contractions
+        # 's contractions - MUST use \s+ to avoid matching "its", "hes", "shes"
         (r'\bit\s+s\b', "it's"),
         (r'\bhe\s+s\b', "he's"),
         (r'\bshe\s+s\b', "she's"),
@@ -132,27 +136,69 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
         (r'\bhere\s+s\b', "here's"),
         (r'\bthere\s+s\b', "there's"),
         (r'\blet\s+s\b', "let's"),
-        # I contractions
-        (r'\bi\s+m\b', "I'm"),
-        (r'\bi\s+ve\b', "I've"),
-        (r'\bi\s+ll\b', "I'll"),
-        (r'\bi\s+d\b', "I'd"),
-        # you contractions
-        (r'\byou\s+re\b', "you're"),
-        (r'\byou\s+ve\b', "you've"),
-        (r'\byou\s+ll\b', "you'll"),
-        (r'\byou\s+d\b', "you'd"),
+        # I contractions - can use \s* because "Im", "Ive" are always wrong
+        (r'\bi\s*m\b', "I'm"),
+        (r'\bi\s*ve\b', "I've"),
+        (r'\bi\s*ll\b', "I'll"),
+        (r'\bi\s*d\b', "I'd"),
+        # you contractions - use \s+ because "youre" etc. are recognizable
+        (r'\byou\s*re\b', "you're"),
+        (r'\byou\s*ve\b', "you've"),
+        (r'\byou\s*ll\b', "you'll"),
+        (r'\byou\s*d\b', "you'd"),
         # we contractions
-        (r'\bwe\s+re\b', "we're"),
-        (r'\bwe\s+ve\b', "we've"),
-        (r'\bwe\s+ll\b', "we'll"),
+        (r'\bwe\s*re\b', "we're"),
+        (r'\bwe\s*ve\b', "we've"),
+        (r'\bwe\s*ll\b', "we'll"),
         # they contractions
-        (r'\bthey\s+re\b', "they're"),
-        (r'\bthey\s+ve\b', "they've"),
-        (r'\bthey\s+ll\b', "they'll"),
+        (r'\bthey\s*re\b', "they're"),
+        # DEBUG: print("Checking they re pattern")
+        (r'\bthey\s*ve\b', "they've"),
+        (r'\bthey\s*ll\b', "they'll"),
     ]
     for pattern, replacement in contraction_fixes:
         result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+        
+    # 15b. Fix incomplete contractions (apostrophe present but missing ending)
+    # These happen when subword tokenization splits contractions oddly
+    # NOTE: After step 0, text has fancy apostrophe ' (U+2019)
+    # Use character class to match both ASCII and fancy apostrophes
+    apos = "['’]"  # Match ASCII ', fancy ', and U+2019
+    
+    # "I'" followed by space → "I'm" (most likely)
+    result = re.sub(rf"\bI{apos}\s+", "I’m ", result)
+    
+    # "it'" followed by space → "it's"
+    result = re.sub(rf"\bit{apos}\s+", "it’s ", result, flags=re.IGNORECASE)
+    
+    # "he'" / "she'" / "that'" / "what'" / "there'" / "where'" / "who'" → add 's
+    result = re.sub(rf"\bhe{apos}\s+", "he’s ", result, flags=re.IGNORECASE)
+    result = re.sub(rf"\bshe{apos}\s+", "she’s ", result, flags=re.IGNORECASE)
+    result = re.sub(rf"\bthat{apos}\s+", "that’s ", result, flags=re.IGNORECASE)
+    result = re.sub(rf"\bwhat{apos}\s+", "what’s ", result, flags=re.IGNORECASE)
+    result = re.sub(rf"\bthere{apos}\s+", "there’s ", result, flags=re.IGNORECASE)
+    result = re.sub(rf"\bwhere{apos}\s+", "where’s ", result, flags=re.IGNORECASE)
+    result = re.sub(rf"\bwho{apos}\s+", "who’s ", result, flags=re.IGNORECASE)
+    
+    # "don" + space + verb → "don't" + verb (common broken pattern)
+    result = re.sub(r"\bdon\s+(believe|think|know|want|need|like|care|worry|mind|understand|remember|forget|see|hear|feel)\b", r"don’t \1", result, flags=re.IGNORECASE)
+    
+    # "they" + "my" (missing 're) → "they’re my"
+    result = re.sub(r"\bthey\s+my\b", "they’re my", result, flags=re.IGNORECASE)
+    
+        # 15c. Additional subword-style broken contractions (space instead of apostrophe)
+    # "they re" → "they're", "you re" → "you're", etc.
+    result = re.sub(r"\bthey\s+re\b", "they're", result, flags=re.IGNORECASE)
+    result = re.sub(r"\byou\s+re\b", "you're", result, flags=re.IGNORECASE)
+    result = re.sub(r"\bwe\s+re\b", "we're", result, flags=re.IGNORECASE)
+    result = re.sub(r"\bthey\s+ve\b", "they've", result, flags=re.IGNORECASE)
+    result = re.sub(r"\byou\s+ve\b", "you've", result, flags=re.IGNORECASE)
+    result = re.sub(r"\bwe\s+ve\b", "we've", result, flags=re.IGNORECASE)
+    result = re.sub(r"\bi\s+ve\b", "I've", result, flags=re.IGNORECASE)
+    result = re.sub(r"\bthey\s+ll\b", "they'll", result, flags=re.IGNORECASE)
+    result = re.sub(r"\byou\s+ll\b", "you'll", result, flags=re.IGNORECASE)
+    result = re.sub(r"\bwe\s+ll\b", "we'll", result, flags=re.IGNORECASE)
+    result = re.sub(r"\bi\s+ll\b", "I'll", result, flags=re.IGNORECASE)
     
     # 16. Remove word/phrase repetition (character-level generation artifact)
     # "the the" → "the", "I I" → "I"
@@ -165,19 +211,52 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     
     # 17a. Remove orphan apostrophe fragments: 't, 's, 'm, 're, 've, 'll, 'd
     # These are leftovers from broken contractions
-    result = re.sub(r"\s+'[tsmd]\b", '', result)
-    result = re.sub(r"\s+'(re|ve|ll)\b", '', result)
+    # Match both ASCII ' and fancy ' apostrophes
+    result = re.sub(r"\s+['''][tsmd]\b", '', result)
+    result = re.sub(r"\s+['''](?:re|ve|ll)\b", '', result)
     
     # 17b. Remove words that start with apostrophe (broken fragments)
-    # e.g., "'nt" at word start, "On't" → just "On" or remove entirely
-    result = re.sub(r"\b[A-Z]?'[a-z]+\b", '', result)  # "On't" → ""
+    # e.g., "'nt" at word start, "On't" → remove
+    # BUT preserve valid contractions: I'm, I've, I'll, I'd, etc.
+    def remove_apostrophe_garbage(match):
+        word = match.group(0)
+        # Normalize apostrophe for comparison
+        word_normalized = word.replace("'", "'").replace(chr(8217), "'")
+        # Valid contractions (all with ASCII apostrophe for comparison)
+        valid_contractions = {"I'm", "I've", "I'll", "I'd", "it's", "he's", "she's", 
+                              "that's", "what's", "there's", "where's", "who's",
+                              "don't", "won't", "can't", "isn't", "aren't", "wasn't",
+                              "weren't", "hasn't", "haven't", "hadn't", "doesn't",
+                              "didn't", "wouldn't", "couldn't", "shouldn't", "ain't",
+                              "you're", "you've", "you'll", "you'd", "we're", "we've",
+                              "we'll", "they're", "they've", "they'll", "let's"}
+        if word_normalized in valid_contractions or word_normalized.lower() in {c.lower() for c in valid_contractions}:
+            return word
+        return ''
     
-    # 17c. Remove obvious 1-2 char garbage (except real words: I, a, an, or, so, oh, no, ok, to, go, we, he, me, my, by)
-    valid_short_words = {'i', 'a', 'an', 'or', 'so', 'oh', 'no', 'ok', 'to', 'go', 'we', 'he', 'me', 'my', 'by', 'if', 'in', 'on', 'up', 'do', 'be', 'is', 'it', 'at', 'as', 'of'}
+    # Match STANDALONE apostrophe-words only (not contraction endings like 're in they're)
+    # Use negative lookbehind to ensure NOT preceded by a letter
+    result = re.sub(r"(?<![a-zA-Z])['''][a-z]+\b", remove_apostrophe_garbage, result)
+    
+    # 17c. Remove obvious 1-2 char garbage (except real words and contraction endings)
+    # Real words: I, a, an, or, so, oh, no, ok, to, go, we, he, me, my, by, etc.
+    # Contraction endings: 'm, 's, 't, 'd, 've, 're, 'll (these come after apostrophe)
+    valid_short_words = {'i', 'a', 'an', 'or', 'so', 'oh', 'no', 'ok', 'to', 'go', 'we', 'he', 
+                         'me', 'my', 'by', 'if', 'in', 'on', 'up', 'do', 'be', 'is', 'it', 
+                         'at', 'as', 'of', 'am', 'us'}
+    # Also preserve contraction endings (single chars that follow apostrophe)
+    contraction_endings = {'m', 's', 't', 'd', 've', 're', 'll'}
     
     def remove_garbage_words(match):
         word = match.group(0)
+        # Check if word is valid
         if word.lower() in valid_short_words:
+            return word
+        # Check if it's a contraction ending (preceded by apostrophe in original)
+        # We need to check context - if there's apostrophe before, keep it
+        start = match.start()
+        if start > 0 and result[start-1] in "'''" + chr(8217):
+            # This is a contraction ending, keep it
             return word
         return ''
     

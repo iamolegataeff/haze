@@ -269,71 +269,76 @@ class Subjectivity:
         Get internal seed for generation.
         
         THIS IS THE KEY FUNCTION.
-        Instead of seeding from user_prompt, we:
-        1. Let the prompt wrinkle the field (compute pulse)
-        2. Find resonant patterns in the field
-        3. Seed from identity + field patterns
+        
+        PRINCIPLE: NO SEED FROM PROMPT
+        The seed comes ENTIRELY from the internal field.
+        The prompt only affects the PULSE (arousal, novelty, entropy).
+        The pulse influences temperature, but NOT the seed words.
+        
+        This is the difference between:
+        - "I love" → "I love your place" (continuation = BAD)
+        - "I love" → "The living room. No, they're my peace" (field seed = GOOD)
         
         Args:
-            user_prompt: What the user said
+            user_prompt: What the user said (used ONLY for pulse)
             temperature: Randomness in seed selection
         
         Returns:
             (token_ids, pulse, seed_text) where:
-            - token_ids: encoded internal seed (NOT from user prompt!)
+            - token_ids: encoded internal seed (NEVER from user prompt!)
             - pulse: the computed pulse snapshot
             - seed_text: the text used as seed (for debugging)
         """
-        # Step 1: Compute pulse from user input
+        # Step 1: Compute pulse from user input (prompt wrinkles the field)
         pulse = self.compute_pulse(user_prompt)
         
-        # Step 2: Extract key words from prompt (for field resonance)
+        # Step 2: Extract prompt words (to EXCLUDE from seed, not to include!)
         prompt_words = set(re.findall(r'\b\w+\b', user_prompt.lower()))
         
-        # Step 3: Find resonating patterns in the field
-        resonating_trigrams = []
-        for trigram in self.identity.gravity_centers[:20]:
-            # Check if any word in trigram resonates with prompt
+        # Step 3: Find NON-overlapping patterns in the field
+        # The seed must NOT contain any words from the prompt!
+        non_overlapping_trigrams = []
+        for trigram in self.identity.gravity_centers[:30]:
             trigram_words = set(trigram)
-            if trigram_words & prompt_words:
-                resonating_trigrams.append(trigram)
+            # Only include trigrams that DON'T overlap with prompt
+            if not (trigram_words & prompt_words):
+                non_overlapping_trigrams.append(trigram)
         
-        # Step 4: Build internal seed
+        # Step 4: Build internal seed from pure field
         seed_parts = []
         
-        # Start with identity fragment (50% chance)
-        if random.random() < 0.5:
-            seed_parts.append(random.choice(self.identity.fragments))
+        # ALWAYS start with identity fragment (presence > intelligence)
+        seed_parts.append(random.choice(self.identity.fragments))
         
-        # Add resonating pattern from field
-        if resonating_trigrams:
-            # Choose based on temperature
-            if temperature > 0.8:
-                # High temp = more random
-                chosen = random.choice(resonating_trigrams)
+        # Add non-overlapping pattern from field
+        if non_overlapping_trigrams:
+            # Choose based on temperature + pulse
+            if temperature > 0.8 or pulse.arousal > 0.7:
+                # High arousal = more random selection
+                chosen = random.choice(non_overlapping_trigrams[:10])
             else:
-                # Low temp = most resonant (first in list)
-                chosen = resonating_trigrams[0]
+                # Low temp = most common (first in list)
+                chosen = non_overlapping_trigrams[0]
             seed_parts.append(' '.join(chosen))
         elif self.identity.gravity_centers:
-            # Fallback to gravity center
-            chosen = random.choice(self.identity.gravity_centers[:10])
-            seed_parts.append(' '.join(chosen))
+            # Fallback: filter gravity centers
+            for trigram in self.identity.gravity_centers[:20]:
+                if not (set(trigram) & prompt_words):
+                    seed_parts.append(' '.join(trigram))
+                    break
+            else:
+                # Last resort: pure identity
+                seed_parts.append("the field responds")
         
         # Combine seed parts
-        if seed_parts:
-            seed_text = '. '.join(seed_parts)
-        else:
-            # Ultimate fallback: use identity
-            seed_text = self.identity.get_identity_seed()
+        seed_text = '. '.join(seed_parts)
         
         # Step 5: Encode seed
         token_ids = self.vocab.encode(seed_text)
         
         # Ensure we have something
         if not token_ids:
-            # Emergency fallback: random tokens from corpus
-            seed_text = "the haze"
+            seed_text = "haze resonates. the field"
             token_ids = self.vocab.encode(seed_text)
         
         return token_ids, pulse, seed_text

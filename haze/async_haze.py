@@ -161,6 +161,18 @@ class AsyncHazeField:
             window_size=5
         )
         
+        # Build subword field if enabled (BPE = coherent output!)
+        if self.use_subword and HAS_SUBWORD:
+            try:
+                self.subword_field = SubwordField.from_corpus(
+                    str(self.corpus_path),
+                    vocab_size=self.subword_vocab_size,
+                )
+            except Exception as e:
+                print(f"[warning] SubwordField failed: {e}, using char-level")
+                self.subword_field = None
+                self.use_subword = False
+        
         # Initialize subjectivity (no seed from prompt)
         self.subjectivity = AsyncSubjectivity(
             self.corpus_text,
@@ -260,17 +272,26 @@ class AsyncHazeField:
                 adjusted_temp = await self.subjectivity.adjust_temperature(pulse)
             
             # 4. GENERATE FROM FIELD (pure resonance)
-            generated_tokens = self.field.generate_from_corpus(
-                seed=seed_tokens,
-                length=length,
-                temperature=adjusted_temp,
-                mode="trigram"
-            )
+            if self.use_subword and self.subword_field is not None:
+                # USE SUBWORD FIELD — coherent output with BPE!
+                # seed_text is already the internal seed from field (not from prompt)
+                raw_text = self.subword_field.generate(
+                    seed_text=seed_text,
+                    length=length,
+                    temperature=adjusted_temp,
+                    mode="trigram"
+                )
+            else:
+                # Fallback to character-level field
+                generated_tokens = self.field.generate_from_corpus(
+                    seed=seed_tokens,
+                    length=length,
+                    temperature=adjusted_temp,
+                    mode="trigram"
+                )
+                raw_text = self.vocab.decode(generated_tokens)
             
-            # 5. DECODE
-            raw_text = self.vocab.decode(generated_tokens)
-            
-            # 6. CLEANUP
+            # 5. CLEANUP
             if cleanup:
                 text = cleanup_output(raw_text, mode="gentle")
             else:
