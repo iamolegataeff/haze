@@ -17,7 +17,7 @@
 
 you know that feeling when you're training a transformer and you realize 90% of the attention mechanism is just overhead? yeah. me too. so i did something about it.
 
-**haze** is a character-level language model that rewrites attention from scratch. no torch. no tensorflow. just numpy and the cold realization that maybe—*just maybe*—we've been overthinking this whole thing.
+**haze** is a character-level language model that rewrites attention from scratch. no torch. no tensorflow. just numpy and the cold realization that maybe we've been overthinking this whole thing.
 
 it's part of [the method](https://github.com/ariannamethod/ariannamethod). the [**arianna method**](https://github.com/ariannamethod/ariannamethod). resonance over intelligence. patterns over parameters. you know the vibe.
 
