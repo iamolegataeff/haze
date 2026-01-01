@@ -63,6 +63,20 @@ try:
 except ImportError:
     HAS_RRPRAM = False
 
+# Import SubwordField if sentencepiece available
+try:
+    from .subword_field import SubwordField, AsyncSubwordField
+    HAS_SUBWORD = True
+except ImportError:
+    HAS_SUBWORD = False
+
+# Import MathBrain (async MLP for field perception)
+try:
+    from .mathbrain import MathBrain, AsyncMathBrain, FieldPerception
+    HAS_MATHBRAIN = True
+except ImportError:
+    HAS_MATHBRAIN = False
+
 # Backwards compatibility aliases
 Haze = PostGPT
 ReweightGPT = PostGPT
@@ -123,4 +137,13 @@ __all__ = [
     # RRPRAM tokenizer (if available)
     'RRPRAMVocab',
     'HAS_RRPRAM',
+    # SubwordField (BPE-based generation) - THE BREAKTHROUGH!
+    'SubwordField',
+    'AsyncSubwordField',
+    'HAS_SUBWORD',
+    # MathBrain (field perception)
+    'MathBrain',
+    'AsyncMathBrain',
+    'FieldPerception',
+    'HAS_MATHBRAIN',
 ]

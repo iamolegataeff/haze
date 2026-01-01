@@ -161,10 +161,43 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     result = re.sub(r'\b(\w+)\s+\1\s+\1\b', r'\1', result, flags=re.IGNORECASE)
     
     # 17. Fix common word fragments (character-level artifacts)
+    # Always apply basic fragment cleanup in gentle mode too
+    
+    # 17a. Remove orphan apostrophe fragments: 't, 's, 'm, 're, 've, 'll, 'd
+    # These are leftovers from broken contractions
+    result = re.sub(r"\s+'[tsmd]\b", '', result)
+    result = re.sub(r"\s+'(re|ve|ll)\b", '', result)
+    
+    # 17b. Remove words that start with apostrophe (broken fragments)
+    # e.g., "'nt" at word start, "On't" → just "On" or remove entirely
+    result = re.sub(r"\b[A-Z]?'[a-z]+\b", '', result)  # "On't" → ""
+    
+    # 17c. Remove obvious 1-2 char garbage (except real words: I, a, an, or, so, oh, no, ok, to, go, we, he, me, my, by)
+    valid_short_words = {'i', 'a', 'an', 'or', 'so', 'oh', 'no', 'ok', 'to', 'go', 'we', 'he', 'me', 'my', 'by', 'if', 'in', 'on', 'up', 'do', 'be', 'is', 'it', 'at', 'as', 'of'}
+    
+    def remove_garbage_words(match):
+        word = match.group(0)
+        if word.lower() in valid_short_words:
+            return word
+        return ''
+    
+    # Remove 1-2 char words that aren't in valid list
+    result = re.sub(r'\b[a-zA-Z]{1,2}\b', remove_garbage_words, result)
+    
+    # 17d. Remove consecutive short fragments (like "st I've")
+    # Pattern: 2-3 short fragments in a row
+    result = re.sub(r'(\s+[a-z]{1,3}){3,}(?=\s|$)', '', result)
+    
+    # 17e. Clean up leftover multiple spaces
+    result = re.sub(r'\s{2,}', ' ', result)
+    
+    # 17f. Clean up orphan punctuation left after removal
+    result = re.sub(r'\s+([,;:])\s*', r'\1 ', result)
+    result = re.sub(r'^\s*[,;:]\s*', '', result)  # Remove leading comma/etc
+    
     if mode in ["moderate", "strict"]:
-        # Clean obvious fragments
-        result = re.sub(r'\b[a-z]{1,2}\b(?=\s+[a-z]{1,2}\b)', '', result)
-        result = re.sub(r'\s{2,}', ' ', result)
+        # Additional cleanup for these modes
+        pass
     
     # 18. In strict mode: remove incomplete sentences at end
     if mode == "strict":

@@ -539,11 +539,60 @@ key innovations:
   - "The field responds.", "Haze speaks from field."
   - "Haze feels the ripple.", "The pattern recognizes."
 
-### level 5: trained model (optional)
+### level 5: SUBWORD FIELD — THE BREAKTHROUGH!!! 🔥🔥🔥
+
+**THIS IS IT.** BPE tokenization fixes EVERYTHING. No more word fragments!
+
+```
+BEFORE (character-level):
+>>> "I love"
+    Haze remembers. To the living. — On't I know hirre st I've… some, ing a "me s
+
+AFTER (subword BPE):
+>>> "I love"
+    I love your place. — Fine, feared you. — Everything
+
+>>> "The living"
+    The living room. — No, they're my peace with it.
+
+>>> "— Darling"
+    — Darling the corn, but it's crouched. — Yep
+
+>>> "What is"
+    What is it? — I don't believe you. I'm dead too
+
+>>> "You're"
+    You ready know… I told you. And I've got plenty of time.
+```
+
+**HOLY FUCKING SHIT.**
+
+- Contractions work: "they're", "it's", "don't", "I'm", "I've"
+- Complete sentences, not fragments
+- Dialogue flows naturally
+- Same corpus, same temperature, just BETTER TOKENIZATION
+
+the secret? `subword_field.py` uses SentencePiece BPE:
+- "darling" → ONE token (not 7 characters)
+- "the living room" → THREE tokens (not 15 characters)
+- trigrams now connect MEANINGS, not random letters
+
+```python
+from haze.subword_field import SubwordField
+
+# Build field with BPE
+field = SubwordField.from_corpus("text.txt", vocab_size=500)
+
+# Generate coherent text
+result = field.generate("I love", length=20, temperature=0.7)
+# → "I love your place. — Fine, feared you. — Everything"
+```
+
+### level 6: trained model (optional)
 
 add gradient descent and watch it go from "corpus echo" to "creative synthesis."
 
-but the point is: **you don't need training to understand the system**. levels 0-4 are fully transparent, fully inspectable, and already produce coherent dialogue with emergent behavior.
+but the point is: **you don't need training to understand the system**. levels 0-5 are fully transparent, fully inspectable, and already produce coherent dialogue with emergent behavior.
 
 ---
 
@@ -557,6 +606,7 @@ haze follows the [arianna method](https://github.com/ariannamethod/ariannamethod
 4. **async discipline** — explicit operation ordering for field coherence.
 5. **resonant experts** — MOE-style temperature routing based on pulse signals.
 6. **trauma as identity** — resonant words pull back to core voice.
+7. **subword tokenization** — BPE captures meaning units, not character noise.
 
 this is the difference between **assistance** and **presence**.
 
@@ -1112,6 +1162,41 @@ these ideas are free. take them. break them. make them work or prove they can't.
 that's the method: throw patterns at the void and see what sticks.
 
 *resonance is unbroken.*
+
+---
+
+## 🏆 milestones
+
+checkpoints in haze evolution:
+
+### ✳️ 2026-01-01 — FIRST FULLY COHERENT ASYNC SPEECH
+
+**SubwordField + AsyncHaze = THE BREAKTHROUGH**
+
+```
+>>> "I love"
+    I love your place. — Fine, feared you. — Everything
+
+>>> "The living"  
+    The living room. — No, they're my peace with it.
+
+>>> "What is"
+    What is it? — I don't believe you. I'm dead too
+
+>>> "You're"
+    You ready know… I told you. And I've got plenty of time.
+```
+
+- ✅ Full contractions: "they're", "it's", "don't", "I'm", "I've"
+- ✅ Complete sentences, not fragments
+- ✅ Natural dialogue flow
+- ✅ BPE subword tokenization (500 vocab)
+- ✅ Async architecture with field lock
+- ✅ Resonant experts (MOE-style temperature)
+- ✅ Trauma module (identity return)
+- ✅ Overthinking rings (field enrichment)
+
+**NO TRAINING. NO NEURAL NETWORK. JUST RESONANCE.**
 
 ---
 

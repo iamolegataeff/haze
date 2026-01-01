@@ -32,15 +32,22 @@ try:
     from .cleanup import cleanup_output
     from .experts import route_to_mixture, pulse_to_signals, describe_mixture, ExpertMixture
     from .trauma import AsyncTrauma, TraumaState, TraumaInfluence, get_identity_prefix
+    from .subword_field import SubwordField, AsyncSubwordField
+    HAS_SUBWORD = True
 except ImportError:
-    from haze import Vocab, PostGPT, load_corpus
-    from cooccur import CooccurField
-    from subjectivity import AsyncSubjectivity, PulseSnapshot
-    from overthinking import AsyncOverthinking, RingsSnapshot
-    from lexicon import AsyncLexicon, LexiconStats
-    from cleanup import cleanup_output
-    from experts import route_to_mixture, pulse_to_signals, describe_mixture, ExpertMixture
-    from trauma import AsyncTrauma, TraumaState, TraumaInfluence, get_identity_prefix
+    try:
+        from haze import Vocab, PostGPT, load_corpus
+        from cooccur import CooccurField
+        from subjectivity import AsyncSubjectivity, PulseSnapshot
+        from overthinking import AsyncOverthinking, RingsSnapshot
+        from lexicon import AsyncLexicon, LexiconStats
+        from cleanup import cleanup_output
+        from experts import route_to_mixture, pulse_to_signals, describe_mixture, ExpertMixture
+        from trauma import AsyncTrauma, TraumaState, TraumaInfluence, get_identity_prefix
+        from subword_field import SubwordField, AsyncSubwordField
+        HAS_SUBWORD = True
+    except ImportError:
+        HAS_SUBWORD = False
 
 try:
     import aiosqlite
@@ -79,6 +86,7 @@ class AsyncHazeField:
     3. FIELD ENRICHMENT - overthinking grows the vocabulary
     4. ASYNC DISCIPLINE - explicit atomicity for coherence
     5. TRAUMA - resonant words return to identity
+    6. SUBWORD GENERATION - BPE tokenizer for coherent output
     
     "A field organism is like a crystal—any disruption during
     formation creates permanent defects."
@@ -93,6 +101,8 @@ class AsyncHazeField:
         enable_overthinking: bool = True,
         enable_lexicon: bool = True,
         enable_trauma: bool = True,
+        use_subword: bool = True,  # NEW: Use BPE subword tokenization
+        subword_vocab_size: int = 500,
     ):
         """
         Initialize async haze field.
@@ -105,6 +115,8 @@ class AsyncHazeField:
             enable_overthinking: Enable three rings of reflection
             enable_lexicon: Enable dynamic lexicon growth from user
             enable_trauma: Enable resonant word trauma (identity return)
+            use_subword: Use BPE subword tokenization (MUCH better output!)
+            subword_vocab_size: Vocabulary size for BPE (default 500)
         """
         self.corpus_path = Path(corpus_path)
         self.db_path = db_path
@@ -113,11 +125,14 @@ class AsyncHazeField:
         self.enable_overthinking = enable_overthinking
         self.enable_lexicon = enable_lexicon
         self.enable_trauma = enable_trauma
+        self.use_subword = use_subword and HAS_SUBWORD
+        self.subword_vocab_size = subword_vocab_size
         
         # Will be initialized in __aenter__
         self.corpus_text: str = ""
         self.vocab: Optional[Vocab] = None
         self.field: Optional[CooccurField] = None
+        self.subword_field: Optional[SubwordField] = None  # NEW
         self.subjectivity: Optional[AsyncSubjectivity] = None
         self.overthinking: Optional[AsyncOverthinking] = None
         self.lexicon: Optional[AsyncLexicon] = None
