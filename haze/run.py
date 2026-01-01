@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# run.py — Enhanced REPL for Reweight-GPT
+# run.py — Enhanced REPL for Haze
 #
 # Features:
 #   - Multiple sampling modes: basic, top_k, top_p, entropy-aware
@@ -17,9 +17,9 @@ import sys
 import argparse
 from pathlib import Path
 
-from model import (
+from haze import (
     Vocab,
-    ReweightGPT as Haze,
+    PostGPT,
     load_corpus,
     build_model_from_text,
 )
@@ -211,7 +211,7 @@ def print_help():
     """Print help message."""
     help_text = """
 ╔══════════════════════════════════════════════════════════════╗
-║              Reweight-GPT REPL — Commands                    ║
+║                   Haze REPL — Commands                       ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  /len N          set generation length (default: 300)        ║
 ║  /temp X         set base temperature (default: 1.0)         ║
@@ -253,7 +253,7 @@ def print_stats(stats: dict):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Reweight-GPT REPL")
+    parser = argparse.ArgumentParser(description="Haze REPL")
     parser.add_argument(
         "--corpus",
         type=Path,
@@ -294,7 +294,7 @@ def main():
     # load or init model
     if args.weights.exists():
         print(f"[model] loading the weight of haze from {args.weights}")
-        model = Haze.theweightofhaze(vocab_size=vocab.vocab_size, path=args.weights)
+        model = PostGPT.theweightofhaze(vocab_size=vocab.vocab_size, path=args.weights)
         print(f"[model] T={model.T}, n_emb={model.n_emb}, blocks={model.n_blocks}, heads={model.n_heads}")
     else:
         print(f"[model] no weights found, random init with head_type={args.head_type}")
@@ -317,7 +317,7 @@ def main():
     # header
     print()
     print("═" * 60)
-    print("  Reweight-GPT — Hybrid Attention Language Model")
+    print("  Haze — Hybrid Attention Entropy System")
     print("  Type /help for commands, or enter seed text")
     print("═" * 60)
     print()
