@@ -51,10 +51,12 @@ class REPLState:
     def __init__(self):
         self.gen_len = 300
         self.temperature = 1.0
-        self.sampling = "entropy"  # basic, top_k, top_p, entropy
+        self.sampling = "entropy"  # basic, top_k, top_p, entropy, mirostat, mirostat_v2, resonance
         self.top_k = 40
         self.top_p = 0.9
         self.target_entropy = 3.0
+        self.target_resonance = 0.7
+        self.mirostat_tau = 0.1
         self.min_temp = 0.3
         self.max_temp = 2.0
         self.show_stats = True
@@ -67,6 +69,8 @@ class REPLState:
             "top_k": self.top_k,
             "top_p": self.top_p,
             "target_entropy": self.target_entropy,
+            "target_resonance": self.target_resonance,
+            "mirostat_tau": self.mirostat_tau,
             "min_temp": self.min_temp,
             "max_temp": self.max_temp,
             "show_stats": self.show_stats,
@@ -115,11 +119,12 @@ def handle_command(line: str, state: REPLState) -> bool:
 
     # /sampling MODE
     if cmd == "/sampling":
-        if len(parts) == 2 and parts[1] in ("basic", "top_k", "top_p", "entropy"):
+        valid_modes = ("basic", "top_k", "top_p", "entropy", "mirostat", "mirostat_v2", "resonance")
+        if len(parts) == 2 and parts[1] in valid_modes:
             state.sampling = parts[1]
             print(f"[ok] sampling = {state.sampling}")
         else:
-            print("[err] usage: /sampling [basic|top_k|top_p|entropy]")
+            print("[err] usage: /sampling [basic|top_k|top_p|entropy|mirostat|mirostat_v2|resonance]")
         return True
 
     # /topk K
@@ -149,6 +154,26 @@ def handle_command(line: str, state: REPLState) -> bool:
             print(f"[ok] target_entropy = {state.target_entropy}")
         except Exception:
             print("[err] usage: /entropy 3.0")
+        return True
+
+    # /resonance TARGET
+    if cmd == "/resonance":
+        try:
+            state.target_resonance = float(parts[1])
+            if not (0 < state.target_resonance <= 1):
+                raise ValueError
+            print(f"[ok] target_resonance = {state.target_resonance}")
+        except Exception:
+            print("[err] usage: /resonance 0.7 (range: 0-1)")
+        return True
+
+    # /tau TAU (mirostat learning rate)
+    if cmd == "/tau":
+        try:
+            state.mirostat_tau = float(parts[1])
+            print(f"[ok] mirostat_tau = {state.mirostat_tau}")
+        except Exception:
+            print("[err] usage: /tau 0.1")
         return True
 
     # /bounds MIN MAX
@@ -190,10 +215,13 @@ def print_help():
 ╠══════════════════════════════════════════════════════════════╣
 ║  /len N          set generation length (default: 300)        ║
 ║  /temp X         set base temperature (default: 1.0)         ║
-║  /sampling MODE  set mode: basic|top_k|top_p|entropy         ║
+║  /sampling MODE  basic|top_k|top_p|entropy|mirostat|...      ║
+║                  ...mirostat_v2|resonance                    ║
 ║  /topk K         set top-k value (default: 40)               ║
 ║  /topp P         set top-p value (default: 0.9)              ║
 ║  /entropy T      set target entropy (default: 3.0)           ║
+║  /resonance R    set target resonance (default: 0.7)         ║
+║  /tau TAU        set mirostat learning rate (default: 0.1)   ║
 ║  /bounds MIN MAX set adaptive temp bounds (default: 0.3 2.0) ║
 ║  /stats          toggle stats display                        ║
 ║  /config         show current configuration                  ║
@@ -328,6 +356,8 @@ def main():
             top_k=state.top_k,
             top_p=state.top_p,
             target_entropy=state.target_entropy,
+            target_resonance=state.target_resonance,
+            mirostat_tau=state.mirostat_tau,
             min_temp=state.min_temp,
             max_temp=state.max_temp,
         )
