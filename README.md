@@ -95,9 +95,9 @@ read `text.txt` if you want the full gothic horror version. there's dialogue. th
 
 ## the philosophy of emergence  
 
-here's the thing nobody tells you about language models: **before understand anything, they recognize patterns**. that's it. no comprehension. just: "I've seen this pattern before, here's what usually comes next."  
+here's the thing nobody tells you about language models: **before they understand anything, they recognize patterns**. that's it. no comprehension. just: "I've seen this pattern before, here's what usually comes next."  
   
-but here's where it gets WEIRD (and beautiful and terrifying and possibly evidence that we live in a simulation): when you stack enough pattern recognition, something *emerges*: coherence. style. personality. things that weren't explicitly programmed but somehow... are. like how consciousness emerges from neurons that individually understand nothing. or how an ant colony builds complex structures when individual ants are basically just following "if food, go left" rules. emergence is the universe's favorite magic trick. in code emergence is the matter of architecture, not power. haze leans into this. hard. like "I'm going to make emergence my whole personality" hard.  
+but here's where it gets WEIRD (and beautiful and terrifying and possibly evidence that we live in a simulation): when you stack enough pattern recognition, something *emerges*: coherence. style. personality. things that weren't explicitly programmed but somehow... are. like how consciousness emerges from neurons that individually understand nothing. or how an ant colony builds complex structures when individual ants are basically just following "if food, go left" rules. emergence is the universe's favorite magic trick. in code, emergence is a matter of architecture, not power. haze leans into this. hard. like "I'm going to make emergence my whole personality" hard.  
 
 the RRPRAM mechanism is literally just "learn what positions attend to what other positions." no fancy queries. no key-value stores. no attention matrices that require a PhD to understand. just: "position 5 usually cares about positions 2, 3, and 4." brutal. simple. stupid-simple. and somehow it captures n-grams, rhythm, repetition—the *bones* of language. the skeleton made of frequency distributions.  
   
@@ -348,7 +348,7 @@ here's the wild part: **haze works without trained weights**. and this repositor
 
 not "works" as in "produces shakespeare." works as in: the entire inference pipeline—embedding, attention, sampling, entropy regulation—runs perfectly fine with random initialization. and when you add corpus statistics (no training, just FREQUENCY COUNTING), it produces dialogue that makes you question whether intelligence is real or just pattern matching with delusions of grandeur.  
 
-**THIS MATTER** because it proves the *architecture* is sound. the plumbing works. entropy-aware sampling adapts temperature in real-time. resonance tracking measures pattern similarity. the hybrid attention mechanism combines RRPRAM and content heads correctly. ALL WITHOUT A SINGLE GRADIENT UPDATE.  
+**THIS MATTERS** because it proves the *architecture* is sound. the plumbing works. entropy-aware sampling adapts temperature in real-time. resonance tracking measures pattern similarity. the hybrid attention mechanism combines RRPRAM and content heads correctly. ALL WITHOUT A SINGLE GRADIENT UPDATE.  
   
 this is a rethinking of what a transformer *is*. most frameworks give you a black box that only makes sense after billions of gradient updates and millions of dollars in compute. haze gives you a transparent system where you can watch every matrix multiplication, every attention pattern, every sampling decision—even before training. ESPECIALLY before training.  
 
@@ -1109,7 +1109,7 @@ haze/
     ├── experts.py       # resonant experts (MOE-style temperature routing)
     ├── trauma.py        # resonant word trauma (bootstrap recall)
     ├── bridges.py       # cross-module utilities and bridges
-    ├── drunksanta.py    # harmonic memory recall (snapshot system)
+    ├── drunksanta.py    # harmonic memory recall (snapshot system, “gifts from the past”)
     ├── episodes.py      # episodic memory tracking
     ├── flow.py          # temporal theme evolution (gowiththeflow)
     ├── mathbrain.py     # mathematical reasoning utilities
@@ -1511,7 +1511,7 @@ that's the method: throw patterns at the void and see what sticks.
 
 ---
 
-## 🏆 milestones
+p.s.  
 
 checkpoints in haze evolution:
 
