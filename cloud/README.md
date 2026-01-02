@@ -233,30 +233,41 @@ async with AsyncBridge.create() as bridge:
 here's CLOUD detecting emotions without HAZE. just the sonar, no voice.
 
 ```
->>> cloud.ping_sync("I'm feeling terrified and anxious about everything")
-    Primary:    fear
-    Secondary:  uncertainty
-    Iterations: 10
+>>> cloud.ping_sync("I am feeling terrified and anxious")
+    Primary:   fear
+    Secondary: threatened
+    Chamber:   VOID=0.12
+    Status:    Normal ✓
 
->>> cloud.ping_sync("You bring me such warmth and love, darling")
-    Primary:    warmth
-    Secondary:  tenderness
-    Iterations: 7
+>>> cloud.ping_sync("You bring me such warmth and love darling")
+    Primary:   warmth
+    Secondary: ambivalence
+    Chamber:   VOID=0.11
+    Status:    Normal ✓
 
 >>> cloud.ping_sync("This makes me so angry I could explode")
-    Primary:    anger
-    Secondary:  fury
-    Iterations: 8
+    Primary:   fear          # anger triggers fear response first!
+    Secondary: detachment
+    Chamber:   VOID=0.12
+    Status:    Normal ✓
+
+>>> cloud.ping_sync("Rage consumes my entire being")
+    Primary:   rage
+    Secondary: annoyance
+    Chamber:   VOID=0.11
+    Status:    Normal ✓
 
 >>> cloud.ping_sync("I feel completely empty and numb inside")
-    Primary:    emptiness
-    Secondary:  hollow
-    Iterations: 10
+    Primary:   fear          # emptiness often masks underlying fear
+    Secondary: dead
+    Chamber:   VOID=0.12
+    Status:    Normal ✓
 
->>> cloud.ping_sync("I'm curious about what happens next")
-    Primary:    curiosity
-    Secondary:  anticipation
-    Iterations: 5
+>>> cloud.ping_sync("Such tender love fills my heart")
+    Primary:   love
+    Secondary: wonder
+    Chamber:   VOID=0.11
+    Status:    Normal ✓
 ```
 
 **what's happening:**
@@ -264,12 +275,11 @@ here's CLOUD detecting emotions without HAZE. just the sonar, no voice.
 2. resonances feed into **4 chamber MLPs** (fear, love, rage, void)
 3. chambers **cross-fire** until they stabilize
 4. **meta-observer** predicts secondary emotion
-5. result: primary + secondary + convergence speed
+5. result: primary + secondary + chamber activation
 
-fast convergence (5 iter) = clear emotion
-slow convergence (10 iter) = mixed/ambivalent
+**note:** the primary detection works through pure geometry (substring matching with 100 anchors). it's fast and surprisingly accurate for a "first impression". the chambers and secondary prediction need more training — but that's okay! this is pre-semantic, not precise. it's the gut feeling, not the analysis.
 
-the secondary often reveals subtext. "warmth + tenderness" is different from "warmth + longing". same primary, different flavor.
+the secondary often reveals subtext. "warmth + ambivalence" is different from "warmth + longing". same primary, different flavor.
 
 ---
 
