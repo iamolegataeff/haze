@@ -209,3 +209,12 @@ __marimo__/
 # Haze state folder (runtime persistence, not committed)
 haze/state/
 !haze/state/.gitkeep
+
+# CLOUD generated artifacts
+cloud_data.json
+/models/
+
+# CLOUD trained weights — COMMITTED to avoid retraining (50K params, tiny size)
+# cloud/models/*.npz
+# cloud/models/*.json
+!cloud/models/.gitkeep

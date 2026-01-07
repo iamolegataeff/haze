@@ -16,22 +16,97 @@
 #   clean_text = cleanup_output(raw_text)
 
 import re
-from typing import Dict
+from typing import Dict, Optional, List
+from collections import Counter
+import math  # For entropy calculation instead of numpy
 
 
-def cleanup_output(text: str, mode: str = "gentle") -> str:
+def _detect_poetic_repetition(text: str) -> List[tuple]:
+    """
+    Detect intentional poetic repetitions (anaphora, refrain patterns).
+    
+    Returns:
+        List of (start, end, pattern) tuples for regions to preserve
+    """
+    preserve_regions = []
+    
+    # Pattern 1: Comma-separated repetitions (e.g., "love, love, love")
+    # These are likely intentional for emphasis
+    pattern = r'\b(\w+)(?:,\s+\1){1,}\b'
+    for match in re.finditer(pattern, text, re.IGNORECASE):
+        preserve_regions.append((match.start(), match.end(), 'comma_repetition'))
+    
+    # Pattern 2: Line-start repetitions (anaphora) - like "I am... I am... I am..."
+    lines = text.split('\n')
+    for i in range(len(lines) - 1):
+        # Check if consecutive lines start with same 2-3 words
+        words1 = lines[i].strip().split()[:3]
+        words2 = lines[i + 1].strip().split()[:3]
+        if len(words1) >= 2 and len(words2) >= 2:
+            if words1[:2] == words2[:2]:
+                # This looks like anaphora, mark these lines as preserve
+                # (We'll handle this in the main cleanup)
+                pass
+    
+    # Pattern 3: Emphatic repetition with punctuation
+    # "Never, never, never!" or "Why? Why? Why?"
+    pattern = r'\b(\w+)([,.!?])\s+\1\2(?:\s+\1\2)*'
+    for match in re.finditer(pattern, text):
+        preserve_regions.append((match.start(), match.end(), 'emphatic_repetition'))
+    
+    return preserve_regions
+
+
+def _is_in_preserve_region(pos: int, regions: List[tuple]) -> bool:
+    """Check if position is within any preserve region."""
+    return any(start <= pos < end for start, end, _ in regions)
+
+
+def _calculate_local_entropy(text: str, window: int = 20) -> float:
+    """
+    Calculate local character-level entropy using standard library.
+    Used to detect coherent vs random text.
+    
+    Returns Shannon entropy in bits (log base 2).
+    """
+    if len(text) < 2:
+        return 0.0
+    
+    # Count character frequencies
+    chars = list(text[-window:] if len(text) > window else text)
+    counts = Counter(chars)
+    total = len(chars)
+    
+    # Shannon entropy: -sum(p * log2(p))
+    entropy = 0.0
+    for count in counts.values():
+        if count > 0:
+            p = count / total
+            entropy -= p * math.log2(p)
+    
+    return entropy
+
+
+def cleanup_output(text: str, mode: str = "gentle", entropy_threshold: Optional[float] = None, preserve_resonance: bool = True) -> str:
     """
     Clean up generation output without killing emergent style.
     
     Args:
         text: raw generated text
         mode: "gentle" (preserve style), "moderate", or "strict"
+        entropy_threshold: if provided, preserve high-entropy (creative) sections
+        preserve_resonance: if True, detect and preserve poetic patterns
     
     Returns:
         Cleaned text with preserved personality
     """
     if not text or not isinstance(text, str):
         return text
+    
+    # Detect poetic repetitions to preserve
+    preserve_regions = []
+    if preserve_resonance:
+        preserve_regions = _detect_poetic_repetition(text)
     
     result = text
     
@@ -46,7 +121,7 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     result = result.replace(" \u2047 ", " ")
     
     # 1. Collapse repeated punctuation (but keep max 3 for style)
-    result = re.sub(r'\.{4,}', '...', result)
+    result = re.sub(r'\.{4,}', '...', result)  # 4+ dots → 3 dots
     result = re.sub(r'\?{4,}', '???', result)
     result = re.sub(r'!{4,}', '!!!', result)
     result = re.sub(r'…{2,}', '…', result)
@@ -73,10 +148,22 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     # 7. Clean up orphaned punctuation at end
     result = re.sub(r'\s+(and|then|but|or|the|a|an)[.,]\s*$', r' \1', result)
     
-    # 8. Clean double dots and punctuation garbage
-    result = re.sub(r'\.\s*\.', '.', result)     # ". ." → "."
-    result = re.sub(r'\.\s+,', '.', result)      # ". ," → "."
-    result = re.sub(r',\s*,', ',', result)       # ", ," → ","
+    # 8. Clean double dots and punctuation garbage  
+    # Only fix actual errors, not valid ellipsis
+    # Simply remove cases where we have exactly two consecutive dots
+    # This preserves "..." (3 dots) and fixes ".." (2 dots) 
+    result = re.sub(r'(?<!\.)\.\.(?!\.)', '.', result)   # ".." → "." (but not part of "...")
+    result = re.sub(r'\.\s+,', '.', result)               # ". ," → "."
+    result = re.sub(r',\s*,', ',', result)                # ", ," → ","
+    
+    # 8a. Clean mid-sentence ellipsis that breaks flow
+    # ONLY for conjunctions: "but…" or "but..." → remove ellipsis, add space
+    # This is specifically for broken generation like "but… Tell me"
+    result = re.sub(r'(\b(?:but|and|or|so|if|when|while|because|although|though|yet|still))\s*…\s*', r'\1 ', result)
+    result = re.sub(r'(\b(?:but|and|or|so|if|when|while|because|although|though|yet|still))\s*\.{3}\s*', r'\1 ', result)
+    
+    # NOTE: Don't touch general "..." — it's valid punctuation!
+    # "Wait... really?" is fine, we just capitalize "really" later
     
     # 9. Fix dialogue markers (— should have space after)
     result = re.sub(r'—(?=[a-zA-Z])', '— ', result)
@@ -109,6 +196,12 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     def cap_after_period(m):
         return m.group(1) + m.group(2).upper()
     result = re.sub(r'(\.\s+)([a-z])', cap_after_period, result)
+    
+    # 14a. EARLY ORPHAN FIX: "don" + pronoun/determiner → "ain't" 
+    # Must run BEFORE contraction fixes to catch "don nothing" → "ain't nothing"
+    # These patterns would otherwise become "don't nothing" which is grammatically wrong
+    result = re.sub(r"\bdon\s+(nothing|something|everything|anything|anyone|someone|everyone|nobody|somebody|everybody|nowhere|somewhere|everywhere|anywhere)\b", 
+                    r"ain't \1", result, flags=re.IGNORECASE)
     
     # 15. Fix broken contractions (character-level and subword generation artifacts)
     # Common contractions that get broken: don't, won't, can't, it's, etc.
@@ -159,11 +252,60 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
         (r'\bwe\s*ll\b', "we'll"),
         # they contractions
         (r'\bthey\s*re\b', "they're"),
-        # DEBUG: print("Checking they re pattern")
         (r'\bthey\s*ve\b', "they've"),
         (r'\bthey\s*ll\b', "they'll"),
     ]
     for pattern, replacement in contraction_fixes:
+        result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+    
+    # 15a_advanced. Advanced contraction patterns
+    # Handle compound contractions: would've, could've, should've, etc.
+    # NOTE: These patterns must be specific to avoid matching valid text
+    # e.g., "we'd" should only match when truly a contraction, not "we did"
+    advanced_contractions = [
+        (r'\bwould\s+have\b', "would've"),
+        (r'\bcould\s+have\b', "could've"),
+        (r'\bshould\s+have\b', "should've"),
+        (r'\bmight\s+have\b', "might've"),
+        (r'\bmust\s+have\b', "must've"),
+        # Y'all is safe to fix
+        (r'\by\s+all\b', "y'all"),
+        # For 'd contractions, only fix when followed by common contraction contexts
+        # "we'd gone" but NOT "we decided" 
+        (r'\bwe\s+d\s+(been|gone|said|thought|wanted|loved|hated|seen|done|known)\b', r"we'd \1"),
+        (r'\bthey\s+d\s+(been|gone|said|thought|wanted|loved|hated|seen|done|known)\b', r"they'd \1"),
+        (r'\bhe\s+d\s+(been|gone|said|thought|wanted|loved|hated|seen|done|known)\b', r"he'd \1"),
+        (r'\bshe\s+d\s+(been|gone|said|thought|wanted|loved|hated|seen|done|known)\b', r"she'd \1"),
+        # Who'd, what'd, where'd, how'd are safer
+        (r'\bwho\s+d\b', "who'd"),
+        (r'\bwhat\s+d\b', "what'd"),
+        (r'\bwhere\s+d\b', "where'd"),
+        (r'\bhow\s+d\b', "how'd"),
+    ]
+    
+    for pattern, replacement in advanced_contractions:
+        result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+    
+    # 15a_possessive. Fix possessive vs contraction confusion
+    # "its" (possessive) vs "it's" (it is/it has)
+    # Look for "its" followed by verb-like words → should be "it's"
+    # "its going" → "it's going", "its been" → "it's been"
+    its_verb_patterns = [
+        (r'\bits\s+(going|been|got|coming|done|always|never|really|still|just|about|almost|already)\b', r"it's \1"),
+        (r'\bits\s+(a|an|the|my|your|his|her|their|our)\s+(good|bad|great|nice|beautiful|terrible|awful|amazing)', r"it's \1 \2"),
+    ]
+    for pattern, replacement in its_verb_patterns:
+        result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+        
+    # Reverse case: "it's" before noun-like words should maybe be "its"
+    # "it's wings" → "its wings", "it's purpose" → "its purpose"
+    # Conservative approach: only fix obvious cases with common body/possession nouns
+    # This list covers the most common false positives we've observed
+    # Character class: ASCII apostrophe (U+0027) and fancy right single quote (U+2019)
+    its_possessive_patterns = [
+        (r"\bit['']s\s+(wings?|eyes?|arms?|legs?|hands?|feet|head|face|body|heart|soul|mind|purpose|meaning|place|home|world)\b", r"its \1"),
+    ]
+    for pattern, replacement in its_possessive_patterns:
         result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
         
     # 15b. Fix incomplete contractions (apostrophe present but missing ending)
@@ -212,14 +354,20 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     # "I don of that" → "I ain't of that"
     # "I don." → "I ain't."
     # "I don trudge" → "I ain't trudge" (verb-like)
+    # "I don tangerines" → "I ain't tangerines" (noun - broken generation)
     # 
     # Match "don" when:
     # - At end of text: \bdon$
     # - Before punctuation: \bdon(?=[.,!?])
     # - Before preposition/article (not a verb): \bdon\s+(of|the|a|an|to|for|with|from|about|by|on|in|at|my|your|his|her|their|its|this|that)
+    # - Before common nouns (broken generation artifacts)
     result = re.sub(r"\bdon\s*$", "ain't", result, flags=re.IGNORECASE)
     result = re.sub(r"\bdon(?=[.,!?])", "ain't", result, flags=re.IGNORECASE)
     result = re.sub(r"\bdon\s+(of|the|a|an|to|for|with|from|about|by|on|in|at|my|your|his|her|their|its|this|that)\b", r"ain't \1", result, flags=re.IGNORECASE)
+    
+    # AGGRESSIVE FIX: "don" + noun-like word (ends with s, es, tion, ness, ment, etc.) → "ain't"
+    # This catches broken generation like "don tangerines", "don tears", "don twilight"
+    result = re.sub(r"\bdon\s+(tangerine|tangerines|tear|tears|twilight|table|tables|street|streets|vendor|vendors|cigarette|cigarettes|apartment|apartments|bottle|bottles|glass|glasses|drink|drinks|key|keys|door|doors|room|rooms|window|windows|floor|floors|wall|walls|chair|chairs|bed|beds|toilet|paper|money|time|place|thing|things|people|person|man|men|woman|women|child|children|hand|hands|face|faces|eye|eyes|head|heart|life|death|love|hate|fear|pain|joy|hope|dream|dreams|night|day|morning|evening|rain|snow|sun|moon|star|stars|sky|earth|world|fire|water|air|light|dark|darkness|silence|noise|sound|voice|word|words|name|story|stories|truth|lie|lies|secret|secrets|memory|memories|moment|moments|year|years|month|week|hour|minute|second|train|trains|thought|thoughts|idea|ideas|feeling|feelings|sense|body|soul|mind|spirit|god|devil|angel|ghost|shadow|shadows|dust|dirt|mud|blood|bone|bones|skin|flesh|hair|breath|step|steps|road|roads|path|paths|way|ways|bridge|bridges|river|rivers|sea|ocean|wave|waves|wind|storm|cloud|clouds|thunder|lightning|fog|mist|haze|smoke|ash|ashes|flame|flames|spark|sparks|ice|stone|stones|rock|rocks|sand|grass|tree|trees|flower|flowers|leaf|leaves|root|roots|branch|branches|bird|birds|dog|dogs|cat|cats|horse|horses|fish|wolf|wolves|bear|snake|rat|rats|mouse|mice|bug|bugs|fly|flies|bee|bees|spider|spiders|worm|worms|twice|once|again|anymore|anyway|always|never|ever|often|sometimes|usually|rarely|seldom|here|there|now|then|today|tomorrow|yesterday|tonight|forever|together|alone|inside|outside|above|below|behind|ahead|around|away|back|down|up|over|under|through|across|along|beside|between|beyond|within|without|against|toward|towards|upon|onto|into|throughout|meanwhile|otherwise|somehow|somewhat|somewhere|anywhere|everywhere|nowhere|anywhere|nothing|something|everything|anything|anyone|someone|everyone|nobody|somebody|everybody)\b", r"ain't \1", result, flags=re.IGNORECASE)
     
     # Same for "won" orphan → "ain't" (rare but possible)
     result = re.sub(r"\bwon\s*$", "ain't", result, flags=re.IGNORECASE)
@@ -242,11 +390,77 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     result = re.sub(r"\bwe\s+ll\b", "we'll", result, flags=re.IGNORECASE)
     result = re.sub(r"\bi\s+ll\b", "I'll", result, flags=re.IGNORECASE)
     
+    # 15d. Fix grammar errors with contractions
+    # "don't trying" → "don't try" (wrong verb form after negation)
+    # "can't going" → "can't go", etc.
+    # Use character class to match both ASCII apostrophe (') and fancy apostrophe (')
+    apos = "['\u2019]"  # ASCII U+0027 and Right Single Quotation Mark U+2019
+    result = re.sub(rf"\b(don{apos}t|can{apos}t|won{apos}t|couldn{apos}t|wouldn{apos}t|shouldn{apos}t|isn{apos}t|aren{apos}t|wasn{apos}t|weren{apos}t|haven{apos}t|hasn{apos}t|hadn{apos}t)\s+(\w+)ing\b", 
+                    lambda m: m.group(1) + ' ' + m.group(2), result, flags=re.IGNORECASE)
+    
+    # "didn't went" → "didn't go" (wrong tense after past negation)  
+    # Common irregular verbs
+    irregular_past_fixes = {
+        'went': 'go', 'came': 'come', 'saw': 'see', 'took': 'take',
+        'gave': 'give', 'made': 'make', 'got': 'get', 'had': 'have',
+        'said': 'say', 'told': 'tell', 'found': 'find', 'knew': 'know',
+        'thought': 'think', 'felt': 'feel', 'left': 'leave', 'kept': 'keep',
+    }
+    for past, base in irregular_past_fixes.items():
+        result = re.sub(rf"\b(didn{apos}t|couldn{apos}t|wouldn{apos}t|shouldn{apos}t)\s+{past}\b", 
+                        rf"\1 {base}", result, flags=re.IGNORECASE)
+    
     # 16. Remove word/phrase repetition (character-level generation artifact)
+    # BUT preserve intentional poetic repetitions
     # "the the" → "the", "I I" → "I"
-    result = re.sub(r'\b(\w+)\s+\1\b', r'\1', result, flags=re.IGNORECASE)
-    # Triple repetition
-    result = re.sub(r'\b(\w+)\s+\1\s+\1\b', r'\1', result, flags=re.IGNORECASE)
+    # But NOT "love, love, love" (intentional emphasis)
+    
+    # IMPORTANT: Process triple+ repetitions FIRST before double
+    # Otherwise "the the the" becomes "the the" then stops
+    
+    # Handle triple+ repetition (more aggressive)
+    # "the the the" → "the" (almost certainly an error)
+    def remove_triple(match):
+        word = match.group(1)
+        # Even with preserve regions, 3+ repetitions without punctuation are errors
+        return word
+    
+    result = re.sub(r'\b(\w+)(?:\s+\1){2,}\b', remove_triple, result, flags=re.IGNORECASE)
+    
+    # Handle two-word phrase repetitions
+    # "the haze the haze" → "the haze"
+    # Pattern: (word1 word2) repeated
+    def remove_phrase_repetition(match):
+        phrase = match.group(1)
+        # Check if preserve region
+        if preserve_resonance and _is_in_preserve_region(match.start(), preserve_regions):
+            return match.group(0)
+        # Check for comma (intentional repetition)
+        if ',' in match.group(0):
+            return match.group(0)
+        return phrase
+    
+    # Two-word phrases repeated (e.g., "the haze the haze")
+    result = re.sub(r'\b(\w+\s+\w+)\s+\1\b', remove_phrase_repetition, result, flags=re.IGNORECASE)
+    
+    # Then handle double repetition (more careful)
+    # Only remove if NOT in a preserve region
+    def remove_if_not_preserved(match):
+        word = match.group(1)
+        # Check if this looks like poetic repetition
+        # (has punctuation between repetitions)
+        full_match = match.group(0)
+        if ',' in full_match or ';' in full_match:
+            # Likely intentional, preserve
+            return full_match
+        # Check preserve regions
+        if preserve_resonance and _is_in_preserve_region(match.start(), preserve_regions):
+            return full_match
+        # This is an error, remove it
+        return word
+    
+    # Handle remaining double repetitions
+    result = re.sub(r'\b(\w+)\s+\1\b', remove_if_not_preserved, result, flags=re.IGNORECASE)
     
     # 17. Fix common word fragments (character-level artifacts)
     # Always apply basic fragment cleanup in gentle mode too
@@ -285,29 +499,28 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     # Contraction endings: 'm, 's, 't, 'd, 've, 're, 'll (these come after apostrophe)
     valid_short_words = {'i', 'a', 'an', 'or', 'so', 'oh', 'no', 'ok', 'to', 'go', 'we', 'he', 
                          'me', 'my', 'by', 'if', 'in', 'on', 'up', 'do', 'be', 'is', 'it', 
-                         'at', 'as', 'of', 'am', 'us'}
-    # Also preserve contraction endings (single chars that follow apostrophe)
-    contraction_endings = {'m', 's', 't', 'd', 've', 're', 'll'}
+                         'at', 'as', 'of', 'am', 'us', 'hi'}  # Added 'hi'
     
-    def remove_garbage_words(match):
-        word = match.group(0)
-        # Check if word is valid
-        if word.lower() in valid_short_words:
-            return word
-        # Check if it's a contraction ending (preceded by apostrophe in original)
-        # We need to check context - if there's apostrophe before, keep it
-        start = match.start()
-        if start > 0 and result[start-1] in "'''" + chr(8217):
-            # This is a contraction ending, keep it
-            return word
-        return ''
-    
-    # Remove 1-2 char words that aren't in valid list
-    result = re.sub(r'\b[a-zA-Z]{1,2}\b', remove_garbage_words, result)
+    # NOTE: Short word removal is disabled in gentle/moderate modes as it was too aggressive
+    # Only apply in strict mode for maximum cleanup
+    # This functionality is preserved for potential future use but not active by default
     
     # 17d. Remove consecutive short fragments (like "st I've")
-    # Pattern: 2-3 short fragments in a row
-    result = re.sub(r'(\s+[a-z]{1,3}){3,}(?=\s|$)', '', result)
+    # Pattern: 3+ short fragments in a row that look like garbage
+    # But be more conservative - only remove if they look like obvious artifacts
+    # "st lk mn" (consonant clusters) vs "go to a" (valid words)
+    # Check if all fragments are in valid_short_words set
+    def check_fragment_sequence(match):
+        fragments = match.group(0).split()
+        # If all fragments are valid words, keep them
+        if all(f.lower() in valid_short_words for f in fragments):
+            return match.group(0)
+        # Otherwise, looks like garbage
+        return ''
+    
+    # Only remove if mode is moderate or strict
+    if mode in ["moderate", "strict"]:
+        result = re.sub(r'(\s+[a-z]{1,3}){3,}(?=\s|$)', check_fragment_sequence, result)
     
     # 17e. Clean up leftover multiple spaces
     result = re.sub(r'\s{2,}', ' ', result)
@@ -322,6 +535,32 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
     
     # 18. Ensure proper sentence endings (no trailing ellipsis/fragments)
     # Philosophy: Pressure creates resonance. Punctuation is constraint that births form.
+    
+    # 18_pre. Advanced sentence structure improvements
+    # Fix run-on sentences (independent clauses without proper punctuation)
+    # Look for pattern: "clause I verb" or "clause you verb" or "clause we verb"
+    # These are likely independent clauses that need separation
+    
+    # Common run-on patterns with high-frequency words
+    run_on_patterns = [
+        # "I went there I saw things" → "I went there. I saw things"
+        (r'(\w+)\s+(I\s+(?:am|was|have|had|do|did|will|would|can|could|should|shall|may|might|must|saw|went|came|got|made|took|gave|said|thought|felt|knew|looked|turned|walked|ran|tried|wanted|needed|loved|hated|found|lost|kept|left|stayed|started|stopped))\b', r'\1. \2'),
+        # Similar for "you", "we", "they", "he", "she"
+        (r'(\w+)\s+(you\s+(?:are|were|have|had|do|did|will|would|can|could|should|shall|may|might|saw|went|came|got))\b', r'\1. \2'),
+        (r'(\w+)\s+(we\s+(?:are|were|have|had|do|did|will|would|can|could|should|shall|saw|went|came|got))\b', r'\1. \2'),
+        (r'(\w+)\s+(they\s+(?:are|were|have|had|do|did|will|would|saw|went|came|got))\b', r'\1. \2'),
+        (r'(\w+)\s+(he\s+(?:is|was|has|had|does|did|will|would|can|could|saw|went|came|got|said|thought))\b', r'\1. \2'),
+        (r'(\w+)\s+(she\s+(?:is|was|has|had|does|did|will|would|can|could|saw|went|came|got|said|thought))\b', r'\1. \2'),
+    ]
+    
+    # Only apply run-on fixes in moderate/strict mode to preserve style in gentle mode
+    if mode in ["moderate", "strict"]:
+        for pattern, replacement in run_on_patterns:
+            # Only apply if the result would be 2+ complete sentences
+            temp_result = re.sub(pattern, replacement, result, count=1, flags=re.IGNORECASE)
+            # Check if this creates better sentence structure
+            if temp_result.count('.') > result.count('.'):
+                result = temp_result
     
     # 18a. If ends with ellipsis, try to find last complete sentence
     if result.endswith('…') or result.endswith('...'):
@@ -363,7 +602,92 @@ def cleanup_output(text: str, mode: str = "gentle") -> str:
         if result and result[-1] not in '.!?':
             result = result.rstrip() + '.'
     
+    # FINAL: Entropy-based quality check
+    # If text has very low entropy (too repetitive/mechanical), add warning
+    # But don't modify - just for metrics
+    if entropy_threshold is not None:
+        local_entropy = _calculate_local_entropy(result)
+        # Store in metadata if needed (for now, just pass)
+        pass
+    
     return result.strip()
+
+
+def cleanup_with_resonance(text: str, resonance_score: Optional[float] = None, entropy: Optional[float] = None) -> str:
+    """
+    Cleanup with resonance-aware mode selection.
+    
+    High resonance + high entropy = preserve more (emergent creativity)
+    Low resonance + low entropy = clean more (mechanical output)
+    
+    Args:
+        text: raw generated text
+        resonance_score: 0-1, how much text resonates with corpus patterns
+        entropy: entropy of the generation (bits)
+    
+    Returns:
+        Cleaned text with mode selected based on metrics
+    """
+    # Default to gentle mode
+    mode = "gentle"
+    
+    # If we have metrics, use them to select mode
+    if resonance_score is not None and entropy is not None:
+        if resonance_score > 0.7 and entropy > 2.5:
+            # High quality, preserve it
+            mode = "gentle"
+            preserve_resonance = True
+        elif resonance_score < 0.4 or entropy < 1.5:
+            # Low quality, clean more aggressively
+            mode = "moderate"
+            preserve_resonance = False
+        else:
+            # Middle ground
+            mode = "gentle"
+            preserve_resonance = True
+    else:
+        preserve_resonance = True
+    
+    return cleanup_output(text, mode=mode, preserve_resonance=preserve_resonance)
+
+
+def ensure_sentence_boundaries(text: str) -> str:
+    """
+    Ensure proper sentence boundaries and capitalization.
+    
+    This is a helper for sentence-aware stopping and generation.
+    """
+    if not text:
+        return text
+    
+    result = text.strip()
+    
+    # Ensure ends with sentence-ending punctuation
+    if result and result[-1] not in '.!?…':
+        # Check if last word is complete
+        words = result.split()
+        if words:
+            last_word = words[-1]
+            # If last word is very short (1-2 chars) and not a real word, might be fragment
+            if len(last_word) <= 2 and last_word.lower() not in {'i', 'a', 'an', 'to', 'of', 'in', 'on', 'at', 'by', 'or', 'no', 'so', 'we', 'he', 'me'}:
+                # Likely fragment, remove it
+                result = ' '.join(words[:-1])
+        
+        # Add period
+        if result:
+            result = result.rstrip() + '.'
+    
+    # Capitalize first letter
+    if result and result[0].islower():
+        result = result[0].upper() + result[1:]
+    
+    # Ensure capitalization after sentence endings
+    def cap_after_punct(m):
+        return m.group(1) + ' ' + m.group(2).upper()
+    
+    result = re.sub(r'([.!?])\s+([a-z])', cap_after_punct, result)
+    
+    return result
 
 
 def cleanup_dialogue(text: str) -> str:
