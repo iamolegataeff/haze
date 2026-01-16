@@ -344,13 +344,46 @@ def create_interface():
         return None, None, None
 
     from gradio import ChatMessage
-    # Custom CSS for dark gothic theme
+    # Custom CSS for dark gothic theme with improved readability
     custom_css = """
     .gradio-container {
         background-color: #0a0a0c !important;
     }
+    
+    .chatbot .message.user {
+        background-color: #1a1a1f !important;
+        color: #ffffff !important;
+    }
+    
+    .chatbot .message.assistant {
+        background-color: #2a2a2f !important;
+        color: #ffb347 !important;
+    }
+    
     .chatbot .message {
         font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace !important;
+    }
+    
+    /* Improved visibility for sidebar text */
+    .markdown h3, .markdown h2 {
+        color: #ffb347 !important;
+        font-weight: bold !important;
+    }
+    
+    .markdown p {
+        color: #e0e0e0 !important;
+        font-size: 14px !important;
+    }
+    
+    .markdown ul, .markdown li {
+        color: #d4d4d4 !important;
+        font-size: 13px !important;
+    }
+    
+    /* Ensure code blocks are visible */
+    code {
+        color: #ff6b6b !important;
+        background-color: #1a1a2e !important;
     }
     """
     
