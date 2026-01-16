@@ -52,14 +52,15 @@ except ImportError as e:
 # ============================================================================
 
 LOGO_TEXT = """
-```
+<pre style="color: #ffb347; background: transparent;">
 ██╗  ██╗ █████╗ ███████╗███████╗
 ██║  ██║██╔══██╗╚══███╔╝██╔════╝
 ███████║███████║  ███╔╝ █████╗  
 ██╔══██║██╔══██║ ███╔╝  ██╔══╝  
 ██║  ██║██║  ██║███████╗███████╗
 ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝
-```
+</pre>
+
 **Hybrid Attention Entropy System** + **CLOUD** (~181K params)
 
 *"emergence is not creation but recognition"*
