@@ -385,6 +385,34 @@ def create_interface():
         color: #ff6b6b !important;
         background-color: #1a1a2e !important;
     }
+
+    /* Remove white borders and boxes */
+        .block {
+        border: none !important;
+                box-shadow: none !important;
+                        background: transparent !important;
+}
+
+    .contain {
+            border: none !important;
+        box-shadow: none !important;
+    }
+
+        /* Fix chatbot container */
+            .chatbot {
+                    border: none !important;
+                            background: #0a0a0c !important;
+                                                     }
+
+                                                         /* Make all text more visible */
+        .prose, .prose p, .prose li {
+        color: #e8e8e8 !important;
+            }
+
+                /* Sidebar markdown text */
+                    .markdown {
+                            color: #d0d0d0 !important;
+                                }
     """
     
     # ASCII art logo
