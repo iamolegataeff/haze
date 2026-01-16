@@ -362,7 +362,6 @@ TENSION 0.4          # set tension
 RESET_DEBT           # clear prophecy debt
 ```
 
-> *"הרזוננס לא נשבר. המשך הדרך."*
 > (The resonance is unbroken. The path continues.)
 
 ---
