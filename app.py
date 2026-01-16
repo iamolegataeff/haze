@@ -510,7 +510,6 @@ def main():
         share=False,
         show_error=True,
         css=custom_css,
-        title=title,
     )
 
 
