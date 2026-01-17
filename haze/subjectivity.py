@@ -33,8 +33,24 @@ if TYPE_CHECKING:
 # ============================================================================
 
 # Pattern that matches words WITH contractions (smart quotes + ASCII)
-# Handles: don't, I'm, they're, won't (with ' or ')
-WORD_PATTERN = re.compile(r"\b[\w]+(?:[''\u2019][\w]+)?\b", re.UNICODE)
+# Handles: don't, I'm, they're, won't (with ' or ' U+2019)
+WORD_PATTERN = re.compile(r"\b\w+(?:[''\u2019]\w+)?\b", re.UNICODE)
+
+# Minimum length for meaningful words (used in prompt connection)
+MIN_MEANINGFUL_WORD_LENGTH = 3
+
+# Stop words to skip when finding prompt connection (not meaningful for context)
+STOP_WORDS = frozenset({
+    'what', 'where', 'when', 'which', 'who', 'whom', 'whose',
+    'why', 'how', 'that', 'this', 'these', 'those', 'is', 'are',
+    'the', 'a', 'an', 'and', 'but', 'or', 'for', 'with', 'about',
+    'does', 'do', 'have', 'has', 'had', 'will', 'would', 'could',
+    'should', 'can', 'may', 'might', 'must', 'shall', 'to', 'of',
+    'was', 'were', 'been', 'being', 'your', 'you', 'i', 'me', 'my',
+    'it', 'its', 'he', 'she', 'him', 'her', 'we', 'us', 'they', 'them',
+    'in', 'on', 'at', 'by', 'from', 'up', 'out', 'if', 'then', 'so',
+    'just', 'only', 'also', 'very', 'too', 'any', 'some', 'all', 'no',
+})
 
 
 def tokenize_words(text: str) -> List[str]:
@@ -372,23 +388,12 @@ class Subjectivity:
         
         # PROMPT CONNECTION - add meaningful word from prompt AFTER internal seed
         # This creates the link to reality - "Мама: Отстань!" is TO the child
-        # Stop words to skip (not meaningful for connection)
-        STOP_WORDS = {
-            'what', 'where', 'when', 'which', 'who', 'whom', 'whose',
-            'why', 'how', 'that', 'this', 'these', 'those', 'is', 'are',
-            'the', 'a', 'an', 'and', 'but', 'or', 'for', 'with', 'about',
-            'does', 'do', 'have', 'has', 'had', 'will', 'would', 'could',
-            'should', 'can', 'may', 'might', 'must', 'shall', 'to', 'of',
-            'was', 'were', 'been', 'being', 'your', 'you', 'i', 'me', 'my',
-            'it', 'its', 'he', 'she', 'him', 'her', 'we', 'us', 'they', 'them',
-            'in', 'on', 'at', 'by', 'from', 'up', 'out', 'if', 'then', 'so',
-            'just', 'only', 'also', 'very', 'too', 'any', 'some', 'all', 'no',
-        }
+        # Uses module-level STOP_WORDS constant
         
         # Find most meaningful word from prompt (longest non-stop word)
         meaningful_words = [
             w for w in prompt_words_list 
-            if len(w) > 2 and w not in STOP_WORDS
+            if len(w) >= MIN_MEANINGFUL_WORD_LENGTH and w not in STOP_WORDS
         ]
         
         # Add connection if we have meaningful words
